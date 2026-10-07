@@ -1,14 +1,18 @@
 /*
- * Proyecto: Control de Robot FUTBOL mediante Bluetooth
- * Autores: Miranda Francisco, Mirabile Emiliano
- * Institución: Colegio Secundario Tomas Alva Edison
- * Año: 2025
- * Descripción: Código para controlar un robot fútbol utilizando un ESP32 D1 WEMOS MINI,
- * mediante comunicación Bluetooth.
+ * Proyecto: Control de Robot FUTBOL
+ * Autores: Cohorte 2028 Tecnicatura en Robótica
+ * Institución: IES Tomas Alva Edison
+ * Año: 2026
+ * Descripción: Código para controlar un robot fútbol utilizando un ESP32 D1 WEMOS MINI
+ * usando FreeRTOS
  */
 
-// Incluir la librería para la comunicación Bluetooth con el ESP32
+// Librerías
+#include <esp_system.h>
 #include "BluetoothSerial.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/timers.h"
 
 // Configuración de Bluetooth
 const char *pin = "1234";  // PIN de conexión Bluetooth
@@ -58,10 +62,49 @@ float factorM2 = 1.0;
 // Declaración de la función setMotors para evitar advertencias de compilación
 void setMotors(float m1, float m2);
 
+// Tarea blink para verificar ejecución
+void BlinkTask(void *parameter) {
+  for (;;)
+  {
+    digitalWrite(led_interno, HIGH);
+    Serial.println("BlinkTask: LED ON");
+    vTaskDelay(1000 / portTICK_PERIOD_MS); // 1000ms
+    digitalWrite(led_interno, LOW);
+    Serial.println("BlinkTask: LED OFF");
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    Serial.print("BlinkTask running on core ");
+    Serial.println(xPortGetCoreID());
+  }
+}
+
 // Configuración inicial del sistema
 void setup() {
   // Inicialización de la comunicación serial
   Serial.begin(115200);
+
+  delay(1000);
+
+  // Obtener la causa del reinicio
+  esp_reset_reason_t causa = esp_reset_reason();
+
+  Serial.print("Código de reinicio: ");
+  Serial.println(razon);
+  Serial.print("Significado: ");
+
+  switch (causa) {
+    case ESP_RST_UNKNOWN:   Serial.println("Desconocido"); break;
+    case ESP_RST_POWERON:   Serial.println("Encendido por botón físico o conexión de energía (Power On)"); break;
+    case ESP_RST_EXT:       Serial.println("Pin de reset externo (EN/RST)"); break;
+    case ESP_RST_SW:        Serial.println("Reinicio por software (esp_restart())"); break;
+    case ESP_RST_PANIC:     Serial.println("Excepción de hardware / Error crítico (Crash/Panic)"); break;
+    case ESP_RST_INT_WDT:   Serial.println("Watchdog Timer interrumpido (Interrupción de reloj)"); break;
+    case ESP_RST_TASK_WDT:  Serial.println("Watchdog de tareas (Una tarea bloqueó el sistema)"); break;
+    case ESP_RST_WDT:       Serial.println("Otros Watchdogs"); break;
+    case ESP_RST_DEEPSLEEP: Serial.println("Despertar del modo Sueño Profundo (Deep Sleep)"); break;
+    case ESP_RST_BROWNOUT:  Serial.println("Caída de voltaje (Marrón/Brownout)"); break;
+    case ESP_RST_SDIO:      Serial.println("Reinicio por entrada/salida SDIO"); break;
+    default:                Serial.println("Causa no mapeada"); break;
+  }
   
   // Inicialización del Bluetooth con el nombre del dispositivo
   SerialBT.begin(device_name); 
@@ -83,6 +126,16 @@ void setup() {
   pinMode(led_interno, OUTPUT);
   pinMode(pinLedRojo, OUTPUT);
   pinMode(pinLedVerde, OUTPUT);
+
+  xTaskCreatePinnedToCore(
+    BlinkTask,         // Función que implementa la tarea
+    "BlinkTask",       // Nombre de la tarea
+    10000,             // Tamaño de la pila (bytes)
+    NULL,              // Parámetros
+    5,                 // Prioridad
+    NULL,              // Manejador de la tarea
+    1                  // Núcleo 1
+  );
 
   delay(100);  // Breve espera para la configuración
 }
