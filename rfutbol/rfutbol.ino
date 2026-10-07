@@ -77,6 +77,106 @@ void BlinkTask(void *parameter) {
   }
 }
 
+// Tarea original de control
+void OriginalTask(void *parameter) {
+  for (;;)
+  {
+    // Comprobación de si hay datos disponibles desde el Bluetooth
+    while (SerialBT.available()) {
+      btSignal = SerialBT.read();  // Leer el dato recibido
+      Serial.println(btSignal);    // Imprimir la señal recibida en el monitor serial
+
+      // Control de la velocidad del robot según la señal recibida
+      if (btSignal == '0') Speed = 50;
+      if (btSignal == '1') Speed = 55;
+      if (btSignal == '2') Speed = 60;
+      if (btSignal == '3') Speed = 65;
+      if (btSignal == '4') Speed = 70;
+      if (btSignal == '5') Speed = 75;
+      if (btSignal == '6') Speed = 80;
+      if (btSignal == '7') Speed = 85;
+      if (btSignal == '8') Speed = 90;
+      if (btSignal == '9') Speed = 95;
+      if (btSignal == 'q') Speed = 100;
+
+      // Control del movimiento del robot según la señal recibida
+      // Movimiento hacia atrás
+      if (btSignal == 'B') {
+        setMotors(-Speed, -Speed);  // Dirección inversa
+      }
+      // Movimiento hacia adelante
+      else if (btSignal == 'F') {
+        setMotors(Speed, Speed);    // Dirección hacia adelante
+      }
+      // Giro hacia la izquierda
+      else if (btSignal == 'L') {
+        setMotors(-0.45 * Speed, 0.95 * Speed);  // Giro hacia la izquierda
+      }
+      // Giro hacia la derecha
+      else if (btSignal == 'R') {
+        setMotors(0.95 * Speed, -0.45 * Speed);  // Giro hacia la derecha
+      }
+      // Detener el robot
+      else if (btSignal == 'S') {
+        setMotors(0, 0);  // Detener motores
+      }
+      // Adelante - Derecha
+      else if (btSignal == 'G') {
+        setMotors(0.60 * Speed, Speed);  // Movimiento hacia adelante con giro a la derecha
+      }
+      // Atras - Derecha
+      else if (btSignal == 'H') {
+        setMotors(-0.50 * Speed, -Speed);  // Movimiento hacia atrás con giro a la derecha
+      }
+      // Adelante - Izquierda
+      else if (btSignal == 'I') {
+        setMotors(Speed, 0.60 * Speed);  // Movimiento hacia adelante con giro a la izquierda
+      }
+      // Atras - Izquierda
+      else if (btSignal == 'J') {
+        setMotors(-Speed, -0.50 * Speed);  // Movimiento hacia atrás con giro a la izquierda
+      }
+      // Encender la luz verde
+      else if (btSignal == 'W') {
+        analogWrite(pinLedRojo, 0);    // Apagar el LED rojo
+        analogWrite(pinLedVerde, 255); // Encender el LED verde
+      }
+      // Apagar la luz verde
+      else if (btSignal == 'w') {
+        analogWrite(pinLedRojo, 255);  // Encender el LED rojo
+        analogWrite(pinLedVerde, 0);   // Apagar el LED verde
+      }
+      // Encender la luz interna
+      else if (btSignal == 'U') {
+        digitalWrite(led_interno, HIGH); // Encender el LED interno
+      }
+      // Apagar la luz interna
+      else if (btSignal == 'u') {
+        digitalWrite(led_interno, LOW); // Apagar el LED interno
+      }
+
+      // --- Calibración por Bluetooth (opcional, se puede borrar este bloque) ---
+      // K/k = bajar/subir potencia del motor 1 | N/n = bajar/subir potencia del motor 2
+      else if (btSignal == 'K') {  // Motor 1: bajar potencia
+        factorM1 = constrain(factorM1 - 0.02, 0.50, 1.0);
+        SerialBT.printf("M1=%.2f  M2=%.2f\n", factorM1, factorM2);
+      }
+      else if (btSignal == 'k') {  // Motor 1: subir potencia
+        factorM1 = constrain(factorM1 + 0.02, 0.50, 1.0);
+        SerialBT.printf("M1=%.2f  M2=%.2f\n", factorM1, factorM2);
+      }
+      else if (btSignal == 'N') {  // Motor 2: bajar potencia
+        factorM2 = constrain(factorM2 - 0.02, 0.50, 1.0);
+        SerialBT.printf("M1=%.2f  M2=%.2f\n", factorM1, factorM2);
+      }
+      else if (btSignal == 'n') {  // Motor 2: subir potencia
+        factorM2 = constrain(factorM2 + 0.02, 0.50, 1.0);
+        SerialBT.printf("M1=%.2f  M2=%.2f\n", factorM1, factorM2);
+      }
+    }
+  }
+}
+
 // Configuración inicial del sistema
 void setup() {
   // Inicialización de la comunicación serial
@@ -88,7 +188,7 @@ void setup() {
   esp_reset_reason_t causa = esp_reset_reason();
 
   Serial.print("Código de reinicio: ");
-  Serial.println(razon);
+  Serial.println(causa);
   Serial.print("Significado: ");
 
   switch (causa) {
@@ -106,16 +206,16 @@ void setup() {
     default:                Serial.println("Causa no mapeada"); break;
   }
   
-  // Inicialización del Bluetooth con el nombre del dispositivo
-  SerialBT.begin(device_name); 
-  Serial.printf("The device with name \"%s\" is started.\nNow you can pair it with Bluetooth!\n", device_name.c_str());
-
   // Configuración del PIN de Bluetooth si está habilitado
   #ifdef USE_PIN
     // CORREGIDO: Se agregó el número 4 como segundo argumento (longitud de "1234")
     SerialBT.setPin(pin, 4);
     Serial.println("Using PIN");
   #endif
+
+  // Inicialización del Bluetooth con el nombre del dispositivo
+  SerialBT.begin(device_name); 
+  Serial.printf("El dispositivo BT nombre \"%s\" se encuentra activo.\n¡Ahora puedes vincularlo por Bluetooth!\n", device_name.c_str());
   
   // Configuración de los pines de los motores y LEDs como salidas
   pinMode(pinMotor1A, OUTPUT);
@@ -137,103 +237,21 @@ void setup() {
     1                  // Núcleo 1
   );
 
+  xTaskCreatePinnedToCore(
+    OriginalTask,         // Función que implementa la tarea
+    "OriginalTask",       // Nombre de la tarea
+    10000,             // Tamaño de la pila (bytes)
+    NULL,              // Parámetros
+    5,                 // Prioridad
+    NULL,              // Manejador de la tarea
+    1                  // Núcleo 1
+  );
+
   delay(100);  // Breve espera para la configuración
 }
 
 void loop() { 
-  // Comprobación de si hay datos disponibles desde el Bluetooth
-  while (SerialBT.available()) {
-    btSignal = SerialBT.read();  // Leer el dato recibido
-    Serial.println(btSignal);    // Imprimir la señal recibida en el monitor serial
-
-    // Control de la velocidad del robot según la señal recibida
-    if (btSignal == '0') Speed = 50;
-    if (btSignal == '1') Speed = 55;
-    if (btSignal == '2') Speed = 60;
-    if (btSignal == '3') Speed = 65;
-    if (btSignal == '4') Speed = 70;
-    if (btSignal == '5') Speed = 75;
-    if (btSignal == '6') Speed = 80;
-    if (btSignal == '7') Speed = 85;
-    if (btSignal == '8') Speed = 90;
-    if (btSignal == '9') Speed = 95;
-    if (btSignal == 'q') Speed = 100;
-
-    // Control del movimiento del robot según la señal recibida
-    // Movimiento hacia atrás
-    if (btSignal == 'B') {
-      setMotors(-Speed, -Speed);  // Dirección inversa
-    }
-    // Movimiento hacia adelante
-    else if (btSignal == 'F') {
-      setMotors(Speed, Speed);    // Dirección hacia adelante
-    }
-    // Giro hacia la izquierda
-    else if (btSignal == 'L') {
-      setMotors(-0.45 * Speed, 0.95 * Speed);  // Giro hacia la izquierda
-    }
-    // Giro hacia la derecha
-    else if (btSignal == 'R') {
-      setMotors(0.95 * Speed, -0.45 * Speed);  // Giro hacia la derecha
-    }
-    // Detener el robot
-    else if (btSignal == 'S') {
-      setMotors(0, 0);  // Detener motores
-    }
-    // Adelante - Derecha
-    else if (btSignal == 'G') {
-      setMotors(0.60 * Speed, Speed);  // Movimiento hacia adelante con giro a la derecha
-    }
-    // Atras - Derecha
-    else if (btSignal == 'H') {
-      setMotors(-0.50 * Speed, -Speed);  // Movimiento hacia atrás con giro a la derecha
-    }
-    // Adelante - Izquierda
-    else if (btSignal == 'I') {
-      setMotors(Speed, 0.60 * Speed);  // Movimiento hacia adelante con giro a la izquierda
-    }
-    // Atras - Izquierda
-    else if (btSignal == 'J') {
-      setMotors(-Speed, -0.50 * Speed);  // Movimiento hacia atrás con giro a la izquierda
-    }
-    // Encender la luz verde
-    else if (btSignal == 'W') {
-      analogWrite(pinLedRojo, 0);    // Apagar el LED rojo
-      analogWrite(pinLedVerde, 255); // Encender el LED verde
-    }
-    // Apagar la luz verde
-    else if (btSignal == 'w') {
-      analogWrite(pinLedRojo, 255);  // Encender el LED rojo
-      analogWrite(pinLedVerde, 0);   // Apagar el LED verde
-    }
-    // Encender la luz interna
-    else if (btSignal == 'U') {
-      digitalWrite(led_interno, HIGH); // Encender el LED interno
-    }
-    // Apagar la luz interna
-    else if (btSignal == 'u') {
-      digitalWrite(led_interno, LOW); // Apagar el LED interno
-    }
-
-    // --- Calibración por Bluetooth (opcional, se puede borrar este bloque) ---
-    // K/k = bajar/subir potencia del motor 1 | N/n = bajar/subir potencia del motor 2
-    else if (btSignal == 'K') {  // Motor 1: bajar potencia
-      factorM1 = constrain(factorM1 - 0.02, 0.50, 1.0);
-      SerialBT.printf("M1=%.2f  M2=%.2f\n", factorM1, factorM2);
-    }
-    else if (btSignal == 'k') {  // Motor 1: subir potencia
-      factorM1 = constrain(factorM1 + 0.02, 0.50, 1.0);
-      SerialBT.printf("M1=%.2f  M2=%.2f\n", factorM1, factorM2);
-    }
-    else if (btSignal == 'N') {  // Motor 2: bajar potencia
-      factorM2 = constrain(factorM2 - 0.02, 0.50, 1.0);
-      SerialBT.printf("M1=%.2f  M2=%.2f\n", factorM1, factorM2);
-    }
-    else if (btSignal == 'n') {  // Motor 2: subir potencia
-      factorM2 = constrain(factorM2 + 0.02, 0.50, 1.0);
-      SerialBT.printf("M1=%.2f  M2=%.2f\n", factorM1, factorM2);
-    }
-  }
+  
 }
 
 // Función para controlar los motores
